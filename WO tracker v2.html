@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welding WO Tracker – Due Date Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <style>
+    .status-teco { background-color: #fee2e2; color: #dc2626; }
+    .status-handover { background-color: #d1fae5; color: #047857; }
+    .status-open-partial { background-color: #fef3c7; color: #b45309; }
+    .status-open-yet { background-color: #dbeafe; color: #1d4ed8; }
+    .status-open-staged { background-color: #ede9fe; color: #5b21b6; }
+    .status-open-hold { background-color: #fbcfe8; color: #be123c; }
+    .status-partial-nc { background-color: #fde68a; color: #ca8a04; }
+
+    .calendar-day {
+      min-height: 110px;
+      border: 1px solid #e5e7eb;
+      padding: 0.5rem;
+      background: white;
+    }
+    .calendar-header {
+      background-color: #f9fafb;
+      font-weight: 700;
+      padding: 0.5rem;
+      text-align: center;
+    }
+    .today {
+      background-color: #dbeafe !important;
+      border-color: #3b82f6 !important;
+    }
+    .wo-card {
+      padding: 0.35rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.7rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+    }
+    .tabs button {
+      padding: 0.75rem 1.25rem;
+      background: #f3f4f6;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 0.5rem 0.5rem 0 0;
+    }
+    .tabs button.active {
+      background: white;
+      color: #3b82f6;
+    }
+    .badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .badge:hover {
+      transform: scale(1.05);
+    }
+    .remarks-cell {
+      max-width: 180px;
+      word-wrap: break-word;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .remarks-edit {
+      width: 100%;
+      height: 100%;
+      padding: 0.25rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 p-4">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-bold mb-4">Welding Work Order Tracker</h1>
+
+    <!-- File Upload + Refresh -->
+    <div class="bg-white p-4 rounded shadow mb-6 flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-sm font-medium mb-1">Upload Excel (.xlsx)</label>
+        <input type="file" id="excelFile" accept=".xlsx" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1 invisible">.</label>
+        <button onclick="refreshData()" class="bg-green-600 text-white px-4 py-2 rounded font-medium flex items-center gap-2">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <p id="lastRefresh" class="text-xs text-gray-500 mt-1"></p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs mb-4">
+      <button class="active" onclick="showView('calendar')">📅 Calendar View</button>
+      <button onclick="showView('table')">📊 Table View</button>
+    </div>
+
+    <!-- Calendar View -->
+    <div id="calendarView">
+      <div class="flex justify-between items-center mb-4">
+        <button onclick="changeMonth(-1)">❮</button>
+        <h2 id="monthYear" class="font-bold"></h2>
+        <button onclick="changeMonth(1)">❯</button>
+      </div>
+      <div id="calendar" class="grid grid-cols-7 gap-1"></div>
+    </div>
+
+    <!-- Table View -->
+    <div id="tableView" class="hidden">
+      <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+        <input type="text" id="searchInput" placeholder="Search WO, PN, Remarks..." class="border p-2 rounded" oninput="applyFilters()" />
+        <select id="wcFilter" class="border p-2 rounded" onchange="applyFilters()">
+          <option value="">All Work Centers</option>
+          <option>WELDPT</option><option>WELDML</option><option>WELDG2</option><option>WELDMN</option><option>WELDCD</option>
+        </select>
+        <select id="statusFilter" class="border p-2 rounded" onchange="applyFilters()">
+          <option value="">All Statuses</option>
+          <option>Closed - Teco</option>
+          <option>Closed - Handover to next operation</option>
+          <option>Open - Partial qty handover to next operation</option>
+          <option>Open - Yet to receive</option>
+          <option>Open - Staged at welding</option>
+          <option>Open - On hold due to NC</option>
+          <option>Open - Partial qty NC & partial qty over to next operation</option>
+        </select>
+      </div>
+      <div class="bg-white shadow rounded overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="p-2 text-left">WO</th>
+                <th class="p-2 text-left">PN</th>
+                <th class="p-2 text-left">Type</th>
+                <th class="p-2 text-left">Work Center</th>
+                <th class="p-2 text-left">Op Qty</th>
+                <th class="p-2 text-left">Cnf Qty</th>
+                <th class="p-2 text-left">Scrap Qty</th>
+                <th class="p-2 text-left">Due Date</th>
+                <th class="p-2 text-left">Status</th>
+                <th class="p-2 text-left">Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let workOrders = [];
+    let currentData = [];
+    let currentDate = new Date();
+
+    // Parse date from Excel "Due date" column (e.g., "Thursday, November 13, 2025")
+    function parseExcelDate(str) {
+      if (!str || str.trim() === '') return null;
+      try {
+        const date = new Date(str);
+        if (date.toString() !== 'Invalid Date') return date;
+      } catch (e) {}
+      return null;
+    }
+
+    function getStatusClass(status) {
+      if (status.includes('Closed - Teco')) return 'status-teco';
+      if (status.includes('Handover')) return 'status-handover';
+      if (status.includes('Partial qty handover')) return 'status-open-partial';
+      if (status.includes('Yet to receive')) return 'status-open-yet';
+      if (status.includes('Staged')) return 'status-open-staged';
+      if (status.includes('On hold due to NC')) return 'status-open-hold';
+      if (status.includes('Partial qty NC')) return 'status-partial-nc';
+      return 'status-teco';
+    }
+
+    function formatDisplayDate(date) {
+      if (!date) return '';
+      return date.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    // === File Upload Handler ===
+    document.getElementById('excelFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      parseExcel(file);
+    });
+
+    function parseExcel(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+        // Find header row
+        let headerRow = -1;
+        for (let i = 0; i < jsonData.length; i++) {
+          if (jsonData[i].length > 5 && jsonData[i][0] === 'WO') {
+            headerRow = i;
+            break;
+          }
+        }
+
+        if (headerRow === -1) {
+          alert('Header row not found. Ensure column A = "WO".');
+          return;
+        }
+
+        const headers = jsonData[headerRow];
+        workOrders = [];
+
+        for (let i = headerRow + 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (!row || row.length < 5 || !row[0]) continue;
+
+          const wo = {};
+          headers.forEach((key, idx) => {
+            wo[key] = row[idx] != null ? String(row[idx]).trim() : '';
+          });
+
+          const dueDateStr = wo['Due date'] || '';
+          const parsedDueDate = parseExcelDate(dueDateStr);
+
+          workOrders.push({
+            WO: wo['WO'] || '',
+            PN: wo['PN'] || '',
+            Type: wo['Type'] || '',
+            'Work Center': wo['Work Center'] || '',
+            'Op qty': wo['Op qty'] || '',
+            'Cnf qty': wo['Cnf qty'] || '',
+            'Scrap qty': wo['Scrap qty'] || '',
+            'System Status': wo['System Status'] || '',
+            Remarks: wo['Remarks'] || '',
+            'Due date': dueDateStr,
+            parsedDueDate: parsedDueDate,
+            displayDueDate: parsedDueDate ? formatDisplayDate(parsedDueDate) : ''
+          });
+        }
+
+        currentData = [...workOrders];
+        renderCalendar();
+        renderTable();
+        document.getElementById('lastRefresh').textContent = 'Last refreshed: ' + new Date().toLocaleTimeString();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // === Calendar Rendering ===
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      document.getElementById('monthYear').textContent = 
+        new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startDay = firstDay.getDay();
+
+      const cal = document.getElementById('calendar');
+      cal.innerHTML = '';
+
+      // Headers
+      ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+        const h = document.createElement('div');
+        h.className = 'calendar-header';
+        h.textContent = d;
+        cal.appendChild(h);
+      });
+
+      // Empty cells before month starts
+      for (let i = 0; i < startDay; i++) cal.appendChild(document.createElement('div'));
+
+      const today = new Date();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const cell = document.createElement('div');
+        cell.className = 'calendar-day';
+        if (date.toDateString() === today.toDateString()) cell.classList.add('today');
+        cell.innerHTML = `<div class="font-bold">${day}</div>`;
+
+        // Only show WOs with VALID due dates
+        const wos = currentData.filter(wo => 
+          wo.parsedDueDate && wo.parsedDueDate.toDateString() === date.toDateString()
+        );
+
+        wos.forEach(wo => {
+          const card = document.createElement('div');
+          card.className = `wo-card ${getStatusClass(wo['System Status'])}`;
+          card.innerHTML = `<div class="font-medium">${wo.WO}</div><div class="text-xs truncate">${wo.PN}</div>`;
+          cell.appendChild(card);
+        });
+
+        cal.appendChild(cell);
+      }
+    }
+
+    // === Table Rendering ===
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      currentData.forEach(wo => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-2 border">${wo.WO}</td>
+          <td class="p-2 border">${wo.PN}</td>
+          <td class="p-2 border">${wo.Type || '—'}</td>
+          <td class="p-2 border">${wo['Work Center']}</td>
+          <td class="p-2 border text-center">${wo['Op qty']}</td>
+          <td class="p-2 border text-center">${wo['Cnf qty'] || '—'}</td>
+          <td class="p-2 border text-center">${wo['Scrap qty'] || '—'}</td>
+          <td class="p-2 border">${wo.displayDueDate || (wo['Due date'] || '—')}</td>
+          <td class="p-2 border">
+            <span class="badge ${getStatusClass(wo['System Status'])}" onclick="editStatus(this, '${wo.WO}')">${wo['System Status']}</span>
+          </td>
+          <td class="p-2 border remarks-cell" onclick="editRemarks(this, '${wo.WO}')">${wo.Remarks || '—'}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // === Edit Functions ===
+    function editStatus(el, wo) {
+      const current = el.textContent;
+      const statuses = [
+        "Closed - Teco",
+        "Closed - Handover to next operation",
+        "Open - Partial qty handover to next operation",
+        "Open - Yet to receive",
+        "Open - Staged at welding",
+        "Open - On hold due to NC",
+        "Open - Partial qty NC & partial qty over to next operation"
+      ];
+      const select = document.createElement('select');
+      select.className = 'border p-1 rounded text-sm';
+      statuses.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        if (s === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.onchange = () => {
+        const newStatus = select.value;
+        const row = currentData.find(r => r.WO === wo);
+        if (row) {
+          row['System Status'] = newStatus;
+          el.className = `badge ${getStatusClass(newStatus)}`;
+          el.textContent = newStatus;
+        }
+        el.replaceWith(select);
+        select.replaceWith(el);
+      };
+      el.replaceWith(select);
+      select.focus();
+    }
+
+    function editRemarks(cell, wo) {
+      const current = cell.textContent;
+      const textarea = document.createElement('textarea');
+      textarea.className = 'remarks-edit';
+      textarea.value = current;
+      textarea.rows = 2;
+      textarea.addEventListener('blur', () => {
+        const newValue = textarea.value.trim();
+        const row = currentData.find(r => r.WO === wo);
+        if (row) {
+          row.Remarks = newValue;
+          cell.textContent = newValue || '—';
+        }
+        cell.replaceWith(textarea);
+        textarea.replaceWith(cell);
+      });
+      cell.replaceWith(textarea);
+      textarea.focus();
+    }
+
+    // === Filters & Navigation ===
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const wc = document.getElementById('wcFilter').value;
+      const status = document.getElementById('statusFilter').value;
+
+      currentData = workOrders.filter(wo =>
+        (wo.WO.toLowerCase().includes(search) || 
+         wo.PN.toLowerCase().includes(search) || 
+         (wo.Remarks || '').toLowerCase().includes(search)) &&
+        (wc === '' || wo['Work Center'] === wc) &&
+        (status === '' || wo['System Status'] === status)
+      );
+
+      renderTable();
+      renderCalendar();
+    }
+
+    function showView(view) {
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('calendarView').classList.toggle('hidden', view !== 'calendar');
+      document.getElementById('tableView').classList.toggle('hidden', view !== 'table');
+      if (view === 'table') renderTable();
+    }
+
+    function changeMonth(delta) {
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function refreshData() {
+      const fileInput = document.getElementById('excelFile');
+      if (fileInput.files.length > 0) {
+        parseExcel(fileInput.files[0]);
+      } else {
+        alert('Please upload an Excel file first.');
+      }
+    }
+
+    // Initial message
+    document.getElementById('calendar').innerHTML = '<div class="col-span-7 text-center py-10 text-gray-500">Upload your Excel file to begin</div>';
+  </script>
+</body>
+</html>
+

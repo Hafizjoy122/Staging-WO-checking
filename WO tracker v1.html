@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welding WO Tracker Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'status-teco': '#fee2e2',
+            'status-handover': '#d1fae5',
+            'status-open-partial': '#fef3c7',
+            'status-open-yet': '#dbeafe',
+            'status-open-staged': '#ede9fe',
+            'status-open-hold': '#fbcfe8',
+            'status-partial-nc': '#fde68a'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    .filter-badge {
+      background-color: #e0f2fe;
+      color: #0369a1;
+    }
+    .status-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .table-container {
+      height: calc(100vh - 320px);
+      overflow-y: auto;
+    }
+    .table-container thead th {
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div class="container mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-900">Welding Work Order Tracker</h1>
+      <p class="text-gray-600 mt-1">Real-time monitoring and entry of welding work orders</p>
+    </div>
+
+    <!-- Manual Entry Form -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+      <h2 class="text-lg font-semibold mb-3 text-gray-800">Add New Work Order</h2>
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">WO</label>
+          <input type="text" id="newWO" class="w-full px-3 py-2 border rounded-md" placeholder="e.g. 6059999" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">PN</label>
+          <input type="text" id="newPN" class="w-full px-3 py-2 border rounded-md" placeholder="e.g. ABD2UG0013EH1" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Type</label>
+          <input type="text" id="newType" class="w-full px-3 py-2 border rounded-md" placeholder="e.g. Mass Pro" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Work Center</label>
+          <select id="newWorkCenter" class="w-full px-3 py-2 border rounded-md">
+            <option value="WELDPT">WELDPT</option>
+            <option value="WELDML">WELDML</option>
+            <option value="WELDG2">WELDG2</option>
+            <option value="WELDMN">WELDMN</option>
+            <option value="WELDCD">WELDCD</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Op Qty</label>
+          <input type="number" id="newOpQty" class="w-full px-3 py-2 border rounded-md" placeholder="e.g. 10" min="1" />
+        </div>
+        <div class="flex items-end">
+          <button id="addRowBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md">
+            <i class="fas fa-plus mr-2"></i>Add
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Search -->
+        <div>
+          <label class="block text-sm font-medium mb-1">Search</label>
+          <input type="text" id="searchInput" placeholder="WO, PN, Remarks..." class="w-full px-3 py-2 border rounded-md" />
+        </div>
+        <!-- Work Center -->
+        <div>
+          <label class="block text-sm font-medium mb-1">Work Center</label>
+          <select id="workCenterFilter" class="w-full px-3 py-2 border rounded-md">
+            <option value="">All</option>
+            <option value="WELDPT">WELDPT</option>
+            <option value="WELDML">WELDML</option>
+            <option value="WELDG2">WELDG2</option>
+            <option value="WELDMN">WELDMN</option>
+            <option value="WELDCD">WELDCD</option>
+          </select>
+        </div>
+        <!-- Status -->
+        <div>
+          <label class="block text-sm font-medium mb-1">Status</label>
+          <select id="statusFilter" class="w-full px-3 py-2 border rounded-md">
+            <option value="">All</option>
+            <option value="Closed - Teco">Closed - Teco</option>
+            <option value="Closed - Handover to next operation">Closed - Handover</option>
+            <option value="Open - Partial qty handover to next operation">Open - Partial Handover</option>
+            <option value="Open - Yet to receive">Open - Yet to Receive</option>
+            <option value="Open - Staged at welding">Open - Staged</option>
+            <option value="Open - On hold due to NC">Open - On Hold</option>
+            <option value="Open - Partial qty NC & partial qty over to next operation">Partial NC</option>
+          </select>
+        </div>
+        <!-- Clear Filters -->
+        <div class="flex items-end">
+          <button id="clearFilters" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-md">
+            <i class="fas fa-sync-alt mr-2"></i>Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white p-4 rounded-lg shadow text-center">
+        <h3 class="text-lg font-semibold">Total WOs</h3>
+        <p id="totalWOs" class="text-2xl font-bold text-blue-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow text-center">
+        <h3 class="text-lg font-semibold">Closed - Handover</h3>
+        <p id="handoverCount" class="text-2xl font-bold text-green-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow text-center">
+        <h3 class="text-lg font-semibold">Open / Pending</h3>
+        <p id="openCount" class="text-2xl font-bold text-yellow-600">0</p>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow text-center">
+        <h3 class="text-lg font-semibold">Scrap Qty</h3>
+        <p id="scrapQty" class="text-2xl font-bold text-red-600">0</p>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden table-container">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WO</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PN</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work Center</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Op Qty</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cnf Qty</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scrap Qty</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
+          <!-- Rows will be inserted by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Initial data from Excel
+    let rawData = [
+      {"WO":"6049485","PN":"ABD2UG0013EH1","Type":"","Work Center":"WELDPT","Op qty":"10","Cnf qty":"0","Scrap qty":"10","Act start":"20-Feb-24","Act finish":"23-Oct-24","System Status":"Closed - Teco","NC No.":"","Remarks":"","Due date":"","Remaining Days":""},
+      {"WO":"6049486","PN":"ABD2UG0013EH1","Type":"","Work Center":"WELDPT","Op qty":"10","Cnf qty":"0","Scrap qty":"10","Act start":"14-Mar-24","Act finish":"14-Mar-24","System Status":"Closed - Teco","NC No.":"","Remarks":"","Due date":"","Remaining Days":""},
+      {"WO":"6049487","PN":"ABD2UG0013EH1","Type":"","Work Center":"WELDPT","Op qty":"10","Cnf qty":"7","Scrap qty":"3","Act start":"8-Mar-24","Act finish":"15-Oct-24","System Status":"Closed - Handover to next operation","NC No.":"","Remarks":"","Due date":"","Remaining Days":""},
+      {"WO":"6051656","PN":"LDFGN1XP10164E71","Type":"","Work Center":"WELDG2","Op qty":"10","Cnf qty":"6","Scrap qty":"0","Act start":"20-Jan-25","Act finish":"4-Mar-25","System Status":"Open - Partial qty handover to next operation","NC No.":"","Remarks":"4 units send to TKB?\\n18th Dec : 4 FG : of SFG (TK2401253) , Bowl, Head, adapter, Oring, fluorine Gasket sent to TKB.\\n26th Feb 25: balance at Welding staging area is 4FG (not welded)\\n4th Mar 25: Completed remaining balance, DSI partial confirmation (6pcs)","Due date":"","Remaining Days":""},
+      {"WO":"6057654","PN":"PHD12HXN5EH11BINT","Type":"","Work Center":"WELDMN","Op qty":"20","Cnf qty":"11","Scrap qty":"","Act start":"3-Apr-25","Act finish":"","System Status":"Open - Partial qty NC & partial qty over to next operation","NC No.":"NC-2025-02798","Remarks":"9pcs of SFGs are OOS\\nMaterial return list completed, pending MR (29/9/25)","Due date":"","Remaining Days":""},
+      {"WO":"6056079","PN":"ABD2UG23EH1XP","Type":"","Work Center":"WELDPT","Op qty":"10","Cnf qty":"","Scrap qty":"","Act start":"","Act finish":"","System Status":"Open - Yet to receive","NC No.":"","Remarks":"","Due date":"","Remaining Days":""},
+      {"WO":"6058625","PN":"LDFGN1XHS1164E71","Type":"Maverick 4C LD 2nd tool Qual (ACL02)","Work Center":"WELDG2","Op qty":"10","Cnf qty":"","Scrap qty":"","Act start":"","Act finish":"","System Status":"Open - Staged at welding","NC No.":"","Remarks":"Pending SFG, SFG not ready.","Due date":"SFG: ABDG1XHS13ECL","Remaining Days":"16-Sep : No SFG"},
+      {"WO":"105978962","PN":"ABFG2XP103EH1","Type":"Mass pro","Work Center":"WELDML","Op qty":"10","Cnf qty":"","Scrap qty":"","Act start":"","Act finish":"","System Status":"Open - Yet to receive","NC No.":"","Remarks":"","Due date":"","Remaining Days":"-45973"},
+      {"WO":"6058740","PN":"PHD13HXPR3LEH11B","Type":"PHD13HXPR3LEH11B (OQPQ) for Recipe 17+3+10.","Work Center":"WELDMN","Op qty":"20","Cnf qty":"","Scrap qty":"","Act start":"","Act finish":"","System Status":"Open - Staged at welding","NC No.":"","Remarks":"Pending ME instruction Mohd Zol, Hafiz :  Mohd Zol, Hafiz:\\nplease ask ME before run","Due date":"","Remaining Days":""}
+    ];
+
+    // Helper to trim whitespace and handle empty
+    function cleanValue(val) {
+      return (val || '').toString().trim();
+    }
+
+    // Render table
+    function renderTable(data) {
+      const tbody = document.getElementById('dataTableBody');
+      tbody.innerHTML = '';
+
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+
+        // Map status to color class
+        let statusClass = '';
+        if (row['System Status'].includes('Closed - Teco')) statusClass = 'bg-status-teco';
+        else if (row['System Status'].includes('Closed - Handover')) statusClass = 'bg-status-handover';
+        else if (row['System Status'].includes('Open - Partial qty handover')) statusClass = 'bg-status-open-partial';
+        else if (row['System Status'].includes('Open - Yet to receive')) statusClass = 'bg-status-open-yet';
+        else if (row['System Status'].includes('Open - Staged')) statusClass = 'bg-status-open-staged';
+        else if (row['System Status'].includes('On hold due to NC')) statusClass = 'bg-status-open-hold';
+        else if (row['System Status'].includes('Partial qty NC')) statusClass = 'bg-status-partial-nc';
+
+        tr.innerHTML = `
+          <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">${cleanValue(row['WO'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm">${cleanValue(row['PN'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm">${cleanValue(row['Type'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm">${cleanValue(row['Work Center'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm text-center">${cleanValue(row['Op qty'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm text-center">${cleanValue(row['Cnf qty'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm text-center">${cleanValue(row['Scrap qty'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-sm">${cleanValue(row['Due date'])}</td>
+          <td class="px-4 py-3 whitespace-nowrap">
+            <span class="status-badge ${statusClass}">${cleanValue(row['System Status'])}</span>
+          </td>
+          <td class="px-4 py-3 text-sm max-w-xs truncate" title="${cleanValue(row['Remarks'])}">${cleanValue(row['Remarks']) || '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Update stats
+    function updateStats(data) {
+      const total = data.length;
+      const handover = data.filter(r => r['System Status'].includes('Closed - Handover')).length;
+      const open = data.filter(r => r['System Status'].startsWith('Open')).length;
+      const scrap = data.reduce((sum, r) => sum + (parseInt(r['Scrap qty']) || 0), 0);
+
+      document.getElementById('totalWOs').textContent = total;
+      document.getElementById('handoverCount').textContent = handover;
+      document.getElementById('openCount').textContent = open;
+      document.getElementById('scrapQty').textContent = scrap;
+    }
+
+    // Add new row
+    document.getElementById('addRowBtn').addEventListener('click', () => {
+      const wo = document.getElementById('newWO').value.trim();
+      const pn = document.getElementById('newPN').value.trim();
+      const type = document.getElementById('newType').value.trim();
+      const wc = document.getElementById('newWorkCenter').value;
+      const opQty = document.getElementById('newOpQty').value.trim();
+
+      if (!wo || !pn || !opQty) {
+        alert('Please fill in WO, PN, and Op Qty.');
+        return;
+      }
+
+      const newRow = {
+        "WO": wo,
+        "PN": pn,
+        "Type": type,
+        "Work Center": wc,
+        "Op qty": opQty,
+        "Cnf qty": "",
+        "Scrap qty": "",
+        "Act start": "",
+        "Act finish": "",
+        "System Status": "Open - Yet to receive",
+        "NC No.": "",
+        "Remarks": "",
+        "Due date": "",
+        "Remaining Days": ""
+      };
+
+      rawData.unshift(newRow); // Add to top
+
+      // Clear form
+      document.getElementById('newWO').value = '';
+      document.getElementById('newPN').value = '';
+      document.getElementById('newType').value = '';
+      document.getElementById('newOpQty').value = '';
+
+      applyFilters(); // Re-apply filters
+    });
+
+    // Filter logic
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const wc = document.getElementById('workCenterFilter').value;
+      const status = document.getElementById('statusFilter').value;
+
+      const filtered = rawData.filter(row => {
+        const matchesSearch = 
+          cleanValue(row['WO']).toLowerCase().includes(search) ||
+          cleanValue(row['PN']).toLowerCase().includes(search) ||
+          cleanValue(row['Remarks']).toLowerCase().includes(search) ||
+          cleanValue(row['Type']).toLowerCase().includes(search);
+
+        const matchesWC = wc === '' || cleanValue(row['Work Center']) === wc;
+        const matchesStatus = status === '' || cleanValue(row['System Status']) === status;
+
+        return matchesSearch && matchesWC && matchesStatus;
+      });
+
+      renderTable(filtered);
+      updateStats(filtered);
+    }
+
+    // Event listeners
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('workCenterFilter').addEventListener('change', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+    document.getElementById('clearFilters').addEventListener('click', () => {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('workCenterFilter').value = '';
+      document.getElementById('statusFilter').value = '';
+      applyFilters();
+    });
+
+    // Initial render
+    renderTable(rawData);
+    updateStats(rawData);
+  </script>
+</body>
+</html>
+
