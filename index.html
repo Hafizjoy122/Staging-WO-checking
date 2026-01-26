@@ -674,11 +674,8 @@
                         <button class="btn btn-danger action-btn remove-btn" data-index="${index}">
                             <i class="fas fa-trash"></i> Remove
                         </button>
-                        <button class="btn btn-info action-btn edit-remarks-btn" data-index="${index}">
-                            <i class="fas fa-edit"></i> Edit Remarks
-                        </button>
                     </td>
-                    <td style="max-width: 200px; word-wrap: break-word;">${order.remarks || ''}</td>
+                    <td style="max-width: 200px; word-wrap: break-word; cursor: pointer;" class="editable-remarks" data-index="${index}">${order.remarks || ''}</td>
                 `;
                 workOrderList.appendChild(row);
             });
@@ -728,6 +725,19 @@
                 });
             });
             
+            document.querySelectorAll('.editable-remarks').forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    const index = e.target.dataset.index;
+                    const newRemarks = prompt('Enter new remarks:', workOrders[index].remarks || '');
+                    if (newRemarks !== null) {
+                        workOrders[index].remarks = newRemarks.trim();
+                        saveWorkOrders(workOrders);
+                        renderWorkOrders();
+                        showNotification(`Remarks updated for ${workOrders[index].id}!`, 'success');
+                    }
+                });
+            });
+            
             updateStats();
         }
         
@@ -748,8 +758,8 @@
                 return;
             }
             
-            if (!/^[A-Z0-9\s]+$/.test(location)) {
-                showNotification('Location must contain only letters, numbers, and spaces (e.g., A1, FG1 Bagging)', 'error');
+            if (!/^[A-Z0-9\s\-_]+$/i.test(locationInput.value.trim())) {
+                showNotification('Location must contain only letters, numbers, spaces, hyphens, underscores (e.g., A1, FG1 Bagging, Zone-5)', 'error');
                 return;
             }
             
