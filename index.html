@@ -1,10 +1,12 @@
 <!DOCTYPE html>
+<!-- Cleanroom Work Order Tracker - A web application for managing work orders in a cleanroom environment -->
 <html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleanroom Work Order Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS Styles for the application layout and design -->
     <style>
         * {
             margin: 0;
@@ -442,12 +444,13 @@
     
     <div id="notification" class="notification"></div>
 
+    <!-- JavaScript for the work order tracker functionality -->
     <script>
-        // Constants
+        // Constants for local storage and limits
         const STORAGE_KEY = 'cleanroom_work_orders';
         const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB limit
         
-        // Show notification
+        // Function to display notifications to the user
         function showNotification(message, type = 'success') {
             const notification = document.getElementById('notification');
             notification.textContent = message;
@@ -458,7 +461,7 @@
             }, 3000);
         }
         
-        // Load data from localStorage or initialize with sample data
+        // Function to load work orders from localStorage or generate sample data
         function loadWorkOrders() {
             try {
                 const storedData = localStorage.getItem(STORAGE_KEY);
