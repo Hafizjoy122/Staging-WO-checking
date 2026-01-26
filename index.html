@@ -1,10 +1,12 @@
 <!DOCTYPE html>
+<!-- Cleanroom Work Order Tracker - A web application for managing work orders in a cleanroom environment -->
 <html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleanroom Work Order Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS Styles for the application layout and design -->
     <style>
         * {
             margin: 0;
@@ -403,6 +405,11 @@
                 </select>
             </div>
             
+            <div class="form-group">
+                <label for="remarks-input"><i class="fas fa-comment"></i> Remarks</label>
+                <input type="text" id="remarks-input" placeholder="Optional notes..." autocomplete="off">
+            </div>
+            
             <button id="add-btn" class="btn btn-success">
                 <i class="fas fa-plus-circle"></i> Add Work Order
             </button>
@@ -430,6 +437,7 @@
                             <th><i class="fas fa-map-marker-alt"></i> Location</th>
                             <th><i class="fas fa-flag"></i> Status</th>
                             <th><i class="fas fa-cogs"></i> Actions</th>
+                            <th><i class="fas fa-comment"></i> Remarks</th>
                         </tr>
                     </thead>
                     <tbody id="work-order-list">
@@ -442,12 +450,13 @@
     
     <div id="notification" class="notification"></div>
 
+    <!-- JavaScript for the work order tracker functionality -->
     <script>
-        // Constants
+        // Constants for local storage and limits
         const STORAGE_KEY = 'cleanroom_work_orders';
         const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB limit
         
-        // Show notification
+        // Function to display notifications to the user
         function showNotification(message, type = 'success') {
             const notification = document.getElementById('notification');
             notification.textContent = message;
@@ -458,7 +467,7 @@
             }, 3000);
         }
         
-        // Load data from localStorage or initialize with sample data
+        // Function to load work orders from localStorage or generate sample data
         function loadWorkOrders() {
             try {
                 const storedData = localStorage.getItem(STORAGE_KEY);
@@ -494,10 +503,10 @@
             const locations = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
             const workOrders = [];
             
-            workOrders.push({ id: 'WO123456', location: 'A1', status: 'in-progress' });
-            workOrders.push({ id: 'WO211111', location: 'B3', status: 'completed' });
-            workOrders.push({ id: 'WO345678', location: 'C2', status: 'hold' });
-            workOrders.push({ id: 'WO456789', location: 'D4', status: 'in-progress' });
+            workOrders.push({ id: 'WO123456', location: 'A1', status: 'in-progress', remarks: 'Initial setup' });
+            workOrders.push({ id: 'WO211111', location: 'B3', status: 'completed', remarks: 'Completed successfully' });
+            workOrders.push({ id: 'WO345678', location: 'C2', status: 'hold', remarks: 'Waiting for parts' });
+            workOrders.push({ id: 'WO456789', location: 'D4', status: 'in-progress', remarks: 'In progress' });
             
             for (let i = 5; i <= 20; i++) {
                 const location = locations[Math.floor(Math.random() * locations.length)] + 
@@ -507,7 +516,8 @@
                 workOrders.push({
                     id: `WO${100000 + i}`,
                     location: location,
-                    status: status
+                    status: status,
+                    remarks: 'Sample data'
                 });
             }
             
@@ -551,7 +561,8 @@
                     'Work Order ID': order.id,
                     'Tote Location': order.location,
                     'Status': order.status === 'in-progress' ? 'In Progress' : 
-                              order.status === 'completed' ? 'Completed' : 'On Hold'
+                              order.status === 'completed' ? 'Completed' : 'On Hold',
+                    'Remarks': order.remarks || ''
                 }));
                 
                 if (exportData.length === 0) {
@@ -597,6 +608,7 @@
         const woInput = document.getElementById('wo-input');
         const locationInput = document.getElementById('location-input');
         const statusSelect = document.getElementById('status-select');
+        const remarksInput = document.getElementById('remarks-input');
         const searchInput = document.getElementById('search-input');
         const searchStatusFilter = document.getElementById('search-status-filter');
         const searchBtn = document.getElementById('search-btn');
@@ -617,7 +629,7 @@
             if (orders.length === 0) {
                 workOrderList.innerHTML = `
                     <tr>
-                        <td colspan="4" class="empty-state">
+                        <td colspan="5" class="empty-state">
                             <i class="fas fa-inbox"></i>
                             <p>No work orders found. Add your first work order!</p>
                         </td>
@@ -652,6 +664,7 @@
                             <i class="fas fa-trash"></i> Remove
                         </button>
                     </td>
+                    <td style="max-width: 200px; word-wrap: break-word;">${order.remarks || ''}</td>
                 `;
                 workOrderList.appendChild(row);
             });
@@ -696,6 +709,7 @@
             const wo = woInput.value.trim().toUpperCase();
             const location = locationInput.value.trim().toUpperCase();
             const status = statusSelect.value;
+            const remarks = remarksInput.value.trim();
             
             if (!wo || !location) {
                 showNotification('Please enter both Work Order ID and Location', 'error');
@@ -722,12 +736,13 @@
                 return;
             }
             
-            workOrders.unshift({ id: wo, location: location, status: status });
+            workOrders.unshift({ id: wo, location: location, status: status, remarks: remarks });
             saveWorkOrders(workOrders);
             renderWorkOrders();
             
             woInput.value = '';
             locationInput.value = '';
+            remarksInput.value = '';
             statusSelect.value = 'in-progress';
             woInput.focus();
             
