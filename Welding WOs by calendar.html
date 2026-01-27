@@ -1229,7 +1229,17 @@
                     woForm.reset();
                 }
             });
-            
+                        cd "c:\Users\3642768\OneDrive - Danaher\Desktop\HTML testing"
+            git checkout main
+            git pull origin main
+            git status
+            git mv "Welding WOs by calendar.html" index.html
+            git add index.html
+            git commit -m "Rename to index.html for GitHub Pages root"
+            git push origin main
+            git ls-tree --name-only -r main
+            start index.html
+            start "https://hafizjoy122.github.io/Welding-WO/"
             // Real-time validation
             const inputs = woForm.querySelectorAll('input, select');
             inputs.forEach(input => {
